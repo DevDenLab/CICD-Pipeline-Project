@@ -1,0 +1,13 @@
+# Keep the build context (and final image) small & clean.
+# Anything listed here is NOT sent to Docker / copied into the image.
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+.venv/
+venv/
+.env
+*.md
+.DS_Store
+.github/

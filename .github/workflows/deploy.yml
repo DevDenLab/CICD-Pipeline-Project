@@ -1,0 +1,67 @@
+# =============================================================================
+# CI/CD pipeline: build the Docker image and push it to GitHub Container Registry
+# =============================================================================
+# This is the "CI" half + the image-publish half of "CD".
+# The actual deploy (pull + run on your self-hosted runner) gets added next.
+
+name: build-and-push          # shows up as the workflow name in the Actions tab
+
+# ---- TRIGGER: when does this run? -------------------------------------------
+on:
+  push:
+    branches: [ "main" ]      # every push to main
+  workflow_dispatch:          # + a manual "Run workflow" button in the UI
+
+# ---- PERMISSIONS: what the auto-provided GITHUB_TOKEN is allowed to do -------
+# 'packages: write' lets us push an image to ghcr.io. Least-privilege on purpose.
+permissions:
+  contents: read
+  packages: write
+
+# ---- Reusable values --------------------------------------------------------
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}   # e.g. yourname/cicd-pipeline-project
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest              # a free GitHub-HOSTED runner (cloud)
+
+    steps:
+      # 1. Get your code onto the runner
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. ghcr.io requires lowercase image names; repo owner may have capitals
+      - name: Lowercase the image name
+        id: img
+        run: echo "name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
+
+      # 3. Log in to GitHub Container Registry using the auto-provided token
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # created automatically, no setup
+
+      # 4. Compute image tags: the commit SHA (immutable) AND 'latest' (moving)
+      - name: Generate tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.img.outputs.name }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest
+
+      # 5. Build the image from the Dockerfile and push it to the registry
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha           # reuse build cache between runs = faster
+          cache-to: type=gha,mode=max
