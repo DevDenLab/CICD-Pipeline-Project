@@ -115,9 +115,15 @@ jobs:
           docker pull $ref
           if ($LASTEXITCODE -ne 0) { throw "docker pull failed" }
 
-          # Replace the old container. Ignore errors if none exists yet.
-          docker stop $env:CONTAINER_NAME 2>$null
-          docker rm   $env:CONTAINER_NAME 2>$null
+          # Replace the old container ONLY if it exists (no stderr = no false fail).
+          $existing = docker ps -aq -f "name=^$($env:CONTAINER_NAME)$"
+          if ($existing) {
+            Write-Host "Stopping old container $existing"
+            docker stop $env:CONTAINER_NAME | Out-Null
+            docker rm   $env:CONTAINER_NAME | Out-Null
+          } else {
+            Write-Host "No existing container - fresh deploy"
+          }
 
           docker run -d `
             --name $env:CONTAINER_NAME `
