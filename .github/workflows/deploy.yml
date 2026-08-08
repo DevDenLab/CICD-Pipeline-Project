@@ -104,36 +104,40 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # The actual deploy. Written in bash so it's identical on any OS.
+      # The actual deploy. PowerShell = always available on a Windows runner.
       - name: Pull and run the new container
-        shell: bash
+        shell: powershell
         run: |
-          set -e
-          REF="${REGISTRY}/${IMAGE}:sha-${GITHUB_SHA}"   # immutable, exact build
-          echo "Deploying $REF"
+          $ErrorActionPreference = "Stop"
+          $ref = "$env:REGISTRY/$env:IMAGE" + ":sha-$env:GITHUB_SHA"   # exact build
+          Write-Host "Deploying $ref"
 
-          docker pull "$REF"
+          docker pull $ref
+          if ($LASTEXITCODE -ne 0) { throw "docker pull failed" }
 
-          # Replace the old container. '|| true' = don't fail if none exists yet.
-          docker stop  "$CONTAINER_NAME" || true
-          docker rm    "$CONTAINER_NAME" || true
+          # Replace the old container. Ignore errors if none exists yet.
+          docker stop $env:CONTAINER_NAME 2>$null
+          docker rm   $env:CONTAINER_NAME 2>$null
 
-          docker run -d \
-            --name "$CONTAINER_NAME" \
-            --restart unless-stopped \
-            -p "${PORT}:8000" \
-            "$REF"
+          docker run -d `
+            --name $env:CONTAINER_NAME `
+            --restart unless-stopped `
+            -p "$($env:PORT):8000" `
+            $ref
+          if ($LASTEXITCODE -ne 0) { throw "docker run failed" }
 
       # Confirm the app is actually alive before calling the deploy a success.
       - name: Health check
-        shell: bash
+        shell: powershell
         run: |
-          set -e
-          for i in $(seq 1 10); do
-            if curl -fs "http://localhost:${PORT}/health"; then
-              echo "  <- healthy"; exit 0
-            fi
-            echo "waiting for app... ($i)"; sleep 2
-          done
-          echo "App never became healthy — dumping logs:"; docker logs "$CONTAINER_NAME"
+          for ($i = 1; $i -le 10; $i++) {
+            try {
+              Invoke-RestMethod -Uri "http://localhost:$($env:PORT)/health" -TimeoutSec 3 | Out-Null
+              Write-Host "healthy"; exit 0
+            } catch {
+              Write-Host "waiting for app... ($i)"; Start-Sleep -Seconds 2
+            }
+          }
+          Write-Host "App never became healthy - dumping logs:"
+          docker logs $env:CONTAINER_NAME
           exit 1
