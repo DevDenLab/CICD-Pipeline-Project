@@ -36,6 +36,7 @@ def health():
     Liveness endpoint. Returns 200 when the app is up.
     CI/CD deploy steps and reverse proxies hit this to decide 'is it ready?'
     """
+    print("Health check hit")
     return {"status": "ok"}
 
 
