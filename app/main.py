@@ -15,7 +15,7 @@ That is intentional for a POC -- it keeps the focus on the pipeline, not a datab
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import this_module_does_not_exist
+# import this_module_does_not_exist
 
 app = FastAPI(title="CICD POC API", version="1.0.0")
 
