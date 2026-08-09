@@ -119,7 +119,11 @@ jobs:
       - name: Blue-green deploy
         shell: powershell
         run: |
-          $ErrorActionPreference = "Stop"
+          # NOTE: 'Continue' (not 'Stop') on purpose. In Windows PowerShell,
+          # 'Stop' turns any stderr from a docker command into a fatal error --
+          # even harmless "not found" probes. We check $LASTEXITCODE ourselves
+          # after the commands that actually matter (pull / run).
+          $ErrorActionPreference = "Continue"
 
           # --- Which image + tag are we deploying? -----------------------------
           # Rollback: use the SHA typed in the UI. Normal: use this commit's SHA.
@@ -132,8 +136,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "docker pull failed" }
 
           # --- Ensure the private network exists -------------------------------
-          docker network inspect $env:NETWORK *> $null
-          if ($LASTEXITCODE -ne 0) { docker network create $env:NETWORK | Out-Null }
+          # 'network ls' with a filter returns the id or empty -- never errors.
+          $netId = docker network ls -q -f "name=^$($env:NETWORK)$"
+          if (-not $netId) {
+            Write-Host "Creating network $env:NETWORK"
+            docker network create $env:NETWORK | Out-Null
+          }
 
           # --- Decide colors: what's live now, what we're bringing up ----------
           $blueUp  = docker ps -q -f "name=^cicd-poc-blue$"
