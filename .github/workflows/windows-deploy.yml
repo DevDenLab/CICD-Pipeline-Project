@@ -4,13 +4,14 @@
 # This is the "CI" half + the image-publish half of "CD".
 # The actual deploy (pull + run on your self-hosted runner) gets added next.
 
-name: build-and-push          # shows up as the workflow name in the Actions tab
+name: deploy-windows-local    # self-hosted Windows runner (your laptop)
 
-# ---- TRIGGER: when does this run? -------------------------------------------
+# ---- TRIGGER: MANUAL ONLY ---------------------------------------------------
+# This path deploys to your LOCAL Windows runner. It no longer runs on push
+# (linux-deploy.yml owns push now). Run it by hand from the Actions tab when
+# your local runner is online -- otherwise it would just hang waiting for it.
 on:
-  push:
-    branches: [ "main" ]      # every push to main
-  workflow_dispatch:          # + a manual "Run workflow" button in the UI
+  workflow_dispatch:
     inputs:
       rollback_sha:
         description: "Full commit SHA to redeploy (leave blank = deploy latest build)"
